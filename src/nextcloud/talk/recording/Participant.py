@@ -537,3 +537,21 @@ class Participant():
         self.seleniumHelper.execute('''
             OCA.Talk.signalingKill()
         ''')
+
+    def startSpeakerTimeline(self):
+        """
+        Starts collecting speaker timeline metadata in the recording page.
+        """
+
+        self.seleniumHelper.execute('''
+            OCA.Talk.startSpeakerTimeline()
+        ''')
+
+    def stopSpeakerTimeline(self):
+        """
+        Stops collecting speaker timeline metadata and returns the timeline.
+        """
+
+        return self.seleniumHelper.execute('''
+            return OCA.Talk.stopSpeakerTimeline()
+        ''')

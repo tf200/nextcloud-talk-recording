@@ -157,7 +157,7 @@ def failed(backend, token):
 
     backendRequest(backend, data)
 
-def uploadRecording(backend, token, fileName, owner):
+def uploadRecording(backend, token, fileName, owner, speakerTimelineFileName=None):
     """
     Upload the recording specified by fileName.
 
@@ -167,6 +167,7 @@ def uploadRecording(backend, token, fileName, owner):
     :param token: the token of the conversation that was recorded.
     :param fileName: the recording file name.
     :param owner: the owner of the uploaded file.
+    :param speakerTimelineFileName: optional JSON file with speaker timeline metadata.
     """
 
     logger.info("Upload recording %s to %s in %s as %s", fileName, backend, token, owner)
@@ -180,6 +181,9 @@ def uploadRecording(backend, token, fileName, owner):
         # pylint: disable=consider-using-with
         'file': (os.path.basename(fileName), open(fileName, 'rb')),
     }
+    if speakerTimelineFileName:
+        # pylint: disable=consider-using-with
+        data['speakerTimeline'] = (os.path.basename(speakerTimelineFileName), open(speakerTimelineFileName, 'rb'), 'application/json')
 
     multipartEncoder = MultipartEncoder(data)
 

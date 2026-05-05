@@ -8,6 +8,7 @@ Module to start and stop the recording for a specific call.
 """
 
 import logging
+import json
 import os
 import subprocess
 import time
@@ -135,6 +136,7 @@ class Service:
         self._participant = None
         self._process = None
         self._fileName = None
+        self._speakerTimelineFileName = None
 
         self._recordingTimeStart = 0
         self._recordingTimeStop = 0
@@ -201,6 +203,7 @@ class Service:
 
             self._logger.debug("Joining call")
             self._participant.joinCall(self.token)
+            self._participant.startSpeakerTimeline()
 
             if self._stopped.is_set():
                 # Not strictly needed, as if the participant is started or the
@@ -275,6 +278,16 @@ class Service:
 
         self._stopped.set()
 
+        if self._participant and self._fileName:
+            try:
+                speakerTimeline = self._participant.stopSpeakerTimeline()
+                if speakerTimeline:
+                    self._speakerTimelineFileName = self._fileName + '.speakers.json'
+                    with open(self._speakerTimelineFileName, 'w', encoding='utf-8') as speakerTimelineFile:
+                        json.dump(speakerTimeline, speakerTimelineFile)
+            except:
+                self._logger.exception("Error when collecting speaker timeline")
+
         self._stopHelpers()
 
         BackendNotifier.stopped(self.backend, self.token, actorType, actorId)
@@ -289,9 +302,11 @@ class Service:
 
             return
 
-        BackendNotifier.uploadRecording(self.backend, self.token, self._fileName, self.owner)
+        BackendNotifier.uploadRecording(self.backend, self.token, self._fileName, self.owner, self._speakerTimelineFileName)
 
         os.remove(self._fileName)
+        if self._speakerTimelineFileName and os.path.exists(self._speakerTimelineFileName):
+            os.remove(self._speakerTimelineFileName)
 
     def _stopHelpers(self):
         self._recordingTimeStop = time.monotonic()
