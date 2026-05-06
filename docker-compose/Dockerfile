@@ -34,6 +34,8 @@ RUN /opt/bin/wrap_chromium_binary
 RUN useradd --create-home recording
 COPY server.conf.in /etc/nextcloud-talk-recording/server.conf
 RUN sed --in-place 's/#listen =.*/listen = 0.0.0.0:8000/' /etc/nextcloud-talk-recording/server.conf
+COPY ./docker-compose/entrypoint.sh /usr/local/bin/nextcloud-talk-recording-entrypoint
+RUN chmod +x /usr/local/bin/nextcloud-talk-recording-entrypoint
 
 # Deploy recording server
 RUN mkdir --parents /tmp/recording
@@ -45,7 +47,6 @@ RUN python3 -m pip install file:///tmp/recording/
 RUN apt-get clean && rm --recursive --force /var/lib/apt/lists/* /tmp/* /var/tmp/*
 RUN rm --recursive --force /tmp/recording
 
-# Switch user and start the recording server
+# Start the recording server
 WORKDIR "/home/recording/"
-USER "recording"
-CMD ["python3", "-m", "nextcloud.talk.recording", "--config", "/etc/nextcloud-talk-recording/server.conf"]
+CMD ["/usr/local/bin/nextcloud-talk-recording-entrypoint"]
