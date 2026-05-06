@@ -203,7 +203,6 @@ class Service:
 
             self._logger.debug("Joining call")
             self._participant.joinCall(self.token)
-            self._participant.startSpeakerTimeline()
 
             if self._stopped.is_set():
                 # Not strictly needed, as if the participant is started or the
@@ -236,6 +235,7 @@ class Service:
                 raise Exception("Call joined after recording was stopped")
 
             self._recordingTimeStart = time.monotonic()
+            self._participant.startSpeakerTimeline()
 
             returnCode = self._process.wait()
 
