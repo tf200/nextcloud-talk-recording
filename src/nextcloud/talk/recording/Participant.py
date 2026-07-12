@@ -547,11 +547,14 @@ class Participant():
             OCA.Talk.startSpeakerTimeline()
         ''')
 
-    def stopSpeakerTimeline(self):
+    def stopSpeakerTimeline(self, recordingOffset=0, clockUncertainty=0):
         """
         Stops collecting speaker timeline metadata and returns the timeline.
         """
 
-        return self.seleniumHelper.execute('''
-            return OCA.Talk.stopSpeakerTimeline()
+        return self.seleniumHelper.execute(f'''
+            return OCA.Talk.stopSpeakerTimeline({{
+                recordingOffset: {recordingOffset},
+                clockUncertainty: {clockUncertainty},
+            }})
         ''')

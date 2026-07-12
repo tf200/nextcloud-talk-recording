@@ -137,6 +137,8 @@ class Service:
         self._process = None
         self._fileName = None
         self._speakerTimelineFileName = None
+        self._speakerTimelineRecordingOffset = 0
+        self._speakerTimelineClockUncertainty = 0
 
         self._recordingTimeStart = 0
         self._recordingTimeStop = 0
@@ -222,6 +224,7 @@ class Service:
             self._fileName = recorderArguments[-1]
 
             self._logger.debug("Starting recorder")
+            self._recordingTimeStart = time.monotonic()
             # pylint: disable=consider-using-with
             self._process = subprocess.Popen(recorderArguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
@@ -234,9 +237,12 @@ class Service:
                 # automatically fail, but just in case.
                 raise Exception("Call joined after recording was stopped")
 
-            self._recordingTimeStart = time.monotonic()
             try:
+                timelineStartBefore = time.monotonic()
                 self._participant.startSpeakerTimeline()
+                timelineStartAfter = time.monotonic()
+                self._speakerTimelineRecordingOffset = max(0, ((timelineStartBefore + timelineStartAfter) / 2) - self._recordingTimeStart)
+                self._speakerTimelineClockUncertainty = max(0, (timelineStartAfter - timelineStartBefore) / 2)
             except:
                 self._logger.exception("Error when starting speaker timeline")
 
@@ -283,7 +289,10 @@ class Service:
 
         if self._participant and self._fileName:
             try:
-                speakerTimeline = self._participant.stopSpeakerTimeline()
+                speakerTimeline = self._participant.stopSpeakerTimeline(
+                    self._speakerTimelineRecordingOffset,
+                    self._speakerTimelineClockUncertainty,
+                )
                 if speakerTimeline:
                     self._speakerTimelineFileName = self._fileName + '.speakers.json'
                     with open(self._speakerTimelineFileName, 'w', encoding='utf-8') as speakerTimelineFile:
