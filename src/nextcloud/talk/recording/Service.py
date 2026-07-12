@@ -235,7 +235,10 @@ class Service:
                 raise Exception("Call joined after recording was stopped")
 
             self._recordingTimeStart = time.monotonic()
-            self._participant.startSpeakerTimeline()
+            try:
+                self._participant.startSpeakerTimeline()
+            except:
+                self._logger.exception("Error when starting speaker timeline")
 
             returnCode = self._process.wait()
 
