@@ -371,6 +371,15 @@ class Config:
         """
         return self._configParser.get('recording', 'browserPath', fallback=None)
 
+    def getParticipantTracksForRecording(self):
+        """
+        Returns whether the audio of each participant is also recorded on its
+        own track.
+
+        Defaults to False.
+        """
+        return self._configParser.getboolean('recording', 'participanttracks', fallback=False)
+
     def getStatsAllowedIps(self):
         """
         Returns the list of IPs allowed to query the stats.

@@ -162,6 +162,13 @@
 # not found by the driver.
 #browserPath =
 
+# Whether to also record the audio of each participant on its own track, in
+# addition to the regular recording. The tracks are written to a directory next
+# to the recording, named after the recording with a ".tracks" suffix, together
+# with a "manifest.json" file describing them.
+# Defaults to false
+#participanttracks = false
+
 [stats]
 # Comma-separated list of IP addresses (or CIDR networks) that are allowed to
 # access the stats endpoint.

@@ -558,3 +558,37 @@ class Participant():
                 clockUncertainty: {clockUncertainty},
             }})
         ''')
+
+    def startTrackRecording(self):
+        """
+        Starts recording the audio of each participant on its own track.
+
+        :return: the page time (in seconds) at which the track recording
+                 started.
+        """
+
+        return self.seleniumHelper.execute('''
+            return OCA.Talk.startTrackRecording()
+        ''')
+
+    def drainTrackChunks(self):
+        """
+        Returns the track chunks recorded since the previous call.
+
+        :return: list of dicts with "segmentId", "seq" and "data" (base64).
+        """
+
+        return self.seleniumHelper.execute('''
+            return OCA.Talk.drainTrackChunks()
+        ''')
+
+    def stopTrackRecording(self):
+        """
+        Stops recording the participant tracks and returns the manifest.
+
+        The last chunks need to be drained after this call.
+        """
+
+        return self.seleniumHelper.executeAsync('''
+            returnResolve(await OCA.Talk.stopTrackRecording())
+        ''')

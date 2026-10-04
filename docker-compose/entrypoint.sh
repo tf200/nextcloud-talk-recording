@@ -29,6 +29,7 @@ log_level="${LOG_LEVEL:-20}"
 listen="${LISTEN:-0.0.0.0:8000}"
 recording_directory="${RECORDING_DIRECTORY:-/tmp}"
 recording_browser="${RECORDING_BROWSER:-firefox}"
+recording_participant_tracks="${RECORDING_PARTICIPANT_TRACKS:-false}"
 
 cat > /etc/nextcloud-talk-recording/server.conf <<EOF
 [logs]
@@ -54,6 +55,7 @@ internalsecret = ${INTERNAL_SECRET}
 
 [recording]
 browser = ${recording_browser}
+participanttracks = ${recording_participant_tracks}
 EOF
 
 chown recording:recording /etc/nextcloud-talk-recording/server.conf

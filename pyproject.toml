@@ -12,6 +12,7 @@ classifiers = [
 ]
 dependencies = [
     "flask",
+    "numpy",
     "prometheus-client",
     "psutil",
     "pulsectl",

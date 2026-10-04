@@ -10,6 +10,7 @@ Module to start and stop the recording for a specific call.
 import logging
 import json
 import os
+import shutil
 import subprocess
 import time
 from datetime import datetime
@@ -19,9 +20,10 @@ from threading import Event, Thread
 import pulsectl
 from pyvirtualdisplay import Display
 
-from . import BackendNotifier
+from . import BackendNotifier, Calibration, TrackChunker
 from .Config import config
 from .Participant import Participant
+from .ParticipantTracks import ParticipantTracksWriter, writeArchive
 from .RecorderArgumentsBuilder import RecorderArgumentsBuilder
 
 def newAudioSink(baseSinkName):
@@ -139,6 +141,12 @@ class Service:
         self._speakerTimelineFileName = None
         self._speakerTimelineRecordingOffset = 0
         self._speakerTimelineClockUncertainty = 0
+        self._participantTracksWriter = None
+        self._participantTracksRecordingOffset = 0
+        self._participantTracksClockUncertainty = 0
+        self._participantTracksDrainStop = Event()
+        self._participantTracksDrainThread = None
+        self._participantTracksManifestFileName = None
 
         self._recordingTimeStart = 0
         self._recordingTimeStop = 0
@@ -246,6 +254,9 @@ class Service:
             except:
                 self._logger.exception("Error when starting speaker timeline")
 
+            if config.getParticipantTracksForRecording():
+                self._startParticipantTracks()
+
             returnCode = self._process.wait()
 
             # recorder process will be explicitly terminated when needed, which
@@ -287,6 +298,8 @@ class Service:
 
         self._stopped.set()
 
+        self._stopParticipantTracks()
+
         if self._participant and self._fileName:
             try:
                 speakerTimeline = self._participant.stopSpeakerTimeline(
@@ -314,13 +327,112 @@ class Service:
 
             return
 
-        BackendNotifier.uploadRecording(self.backend, self.token, self._fileName, self.owner, self._speakerTimelineFileName)
+        participantTracksFileName = self._prepareParticipantTracks()
+
+        BackendNotifier.uploadRecording(self.backend, self.token, self._fileName, self.owner, self._speakerTimelineFileName, participantTracksFileName)
 
         os.remove(self._fileName)
         if self._speakerTimelineFileName and os.path.exists(self._speakerTimelineFileName):
             os.remove(self._speakerTimelineFileName)
+        if self._participantTracksWriter:
+            shutil.rmtree(self._participantTracksWriter.directory, ignore_errors=True)
+
+    def _startParticipantTracks(self):
+        try:
+            self._participantTracksWriter = ParticipantTracksWriter(self._fileName, self._logger)
+
+            trackStartBefore = time.monotonic()
+            trackRecording = self._participant.startTrackRecording()
+            trackStartAfter = time.monotonic()
+
+            self._participantTracksWriter.setMimeType(trackRecording.get('mimeType'))
+            self._participantTracksRecordingOffset = max(0, ((trackStartBefore + trackStartAfter) / 2) - self._recordingTimeStart)
+            self._participantTracksClockUncertainty = max(0, (trackStartAfter - trackStartBefore) / 2)
+        except:
+            self._logger.exception("Error when starting participant tracks")
+            self._participantTracksWriter = None
+
+            return
+
+        self._participantTracksDrainThread = Thread(target=self._drainParticipantTracks, daemon=True)
+        self._participantTracksDrainThread.start()
+
+    def _drainParticipantTracks(self):
+        # The browser keeps the chunks in memory until drained, so they are
+        # periodically written to disk during the recording.
+        while not self._participantTracksDrainStop.wait(5):
+            try:
+                self._participantTracksWriter.write(self._participant.drainTrackChunks())
+            except:
+                self._logger.exception("Error when draining participant tracks")
+
+    def _stopParticipantTracks(self):
+        if not self._participantTracksWriter:
+            return
+
+        # Selenium must not be used concurrently, so the drain thread needs to
+        # be finished before stopping the track recording.
+        self._participantTracksDrainStop.set()
+        if self._participantTracksDrainThread:
+            self._participantTracksDrainThread.join()
+
+        if not self._participant:
+            return
+
+        try:
+            manifest = self._participant.stopTrackRecording()
+            self._participantTracksWriter.write(self._participant.drainTrackChunks())
+            if manifest:
+                self._participantTracksManifestFileName = self._participantTracksWriter.writeManifest(
+                    manifest,
+                    self._participantTracksRecordingOffset,
+                    self._participantTracksClockUncertainty,
+                )
+                self._logger.info("Participant tracks written to %s", self._participantTracksWriter.directory)
+        except:
+            self._logger.exception("Error when collecting participant tracks")
+
+    def _prepareParticipantTracks(self):
+        """
+        Aligns the participant tracks with the recording and splits them in
+        speech chunks.
+
+        The recorder must have finished writing the recording file.
+
+        :return: the archive to upload, or None if there are no tracks or they
+                 could not be prepared (the recording is uploaded anyway).
+        """
+
+        if not self._participantTracksManifestFileName:
+            return None
+
+        directory = self._participantTracksWriter.directory
+        try:
+            with open(self._participantTracksManifestFileName, encoding='utf-8') as manifestFile:
+                manifest = json.load(manifestFile)
+
+            stepStart = time.monotonic()
+            Calibration.calibrate(self._fileName, manifest, directory, self._logger)
+            self._logger.info("Participant tracks aligned in %.1f seconds", time.monotonic() - stepStart)
+
+            stepStart = time.monotonic()
+            TrackChunker.chunk(manifest, directory, self._logger)
+            self._logger.info("Participant tracks split in %d chunks in %.1f seconds", len(manifest['chunks']), time.monotonic() - stepStart)
+
+            with open(self._participantTracksManifestFileName, 'w', encoding='utf-8') as manifestFile:
+                json.dump(manifest, manifestFile)
+
+            if not manifest['chunks']:
+                return None
+
+            return writeArchive(directory, manifest, os.path.join(directory, 'tracks.zip'))
+        except:
+            self._logger.exception("Error when preparing participant tracks")
+
+            return None
 
     def _stopHelpers(self):
+        self._participantTracksDrainStop.set()
         self._recordingTimeStop = time.monotonic()
 
         if self._process:

@@ -157,7 +157,7 @@ def failed(backend, token):
 
     backendRequest(backend, data)
 
-def uploadRecording(backend, token, fileName, owner, speakerTimelineFileName=None):
+def uploadRecording(backend, token, fileName, owner, speakerTimelineFileName=None, participantTracksFileName=None):
     """
     Upload the recording specified by fileName.
 
@@ -168,6 +168,8 @@ def uploadRecording(backend, token, fileName, owner, speakerTimelineFileName=Non
     :param fileName: the recording file name.
     :param owner: the owner of the uploaded file.
     :param speakerTimelineFileName: optional JSON file with speaker timeline metadata.
+    :param participantTracksFileName: optional zip archive with the manifest and
+           the speech chunks of the participant tracks.
     """
 
     logger.info("Upload recording %s to %s in %s as %s", fileName, backend, token, owner)
@@ -184,6 +186,9 @@ def uploadRecording(backend, token, fileName, owner, speakerTimelineFileName=Non
     if speakerTimelineFileName:
         # pylint: disable=consider-using-with
         data['speakerTimeline'] = (os.path.basename(speakerTimelineFileName), open(speakerTimelineFileName, 'rb'), 'application/json')
+    if participantTracksFileName:
+        # pylint: disable=consider-using-with
+        data['participantTracks'] = (os.path.basename(participantTracksFileName), open(participantTracksFileName, 'rb'), 'application/zip')
 
     multipartEncoder = MultipartEncoder(data)
 
